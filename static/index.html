@@ -1,0 +1,1091 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#212121">
+<title>ResearchPilot AI</title>
+
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #212121;
+  --sidebar: #171717;
+  --surface: #2f2f2f;
+  --surface-hover: #383838;
+  --border: #414141;
+  --text: #ececec;
+  --muted: #a0a0a0;
+  --green: #b7d8c0;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI",
+        Helvetica, Arial, sans-serif;
+}
+
+button, textarea { font: inherit; }
+button { color: inherit; cursor: pointer; }
+button:disabled { opacity: .5; cursor: wait; }
+
+button:focus-visible, textarea:focus-visible {
+  outline: 2px solid #999;
+  outline-offset: 3px;
+}
+
+.app {
+  height: 100dvh;
+  display: flex;
+  overflow: hidden;
+}
+
+/* Sidebar */
+
+.sidebar {
+  width: 260px;
+  min-width: 260px;
+  background: var(--sidebar);
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  transition: width .2s, min-width .2s, padding .2s;
+  overflow: hidden;
+}
+
+.app.sidebar-closed .sidebar {
+  width: 0;
+  min-width: 0;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.sidebar-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 4px 17px;
+  gap: 8px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -.35px;
+  white-space: nowrap;
+}
+
+.brand-icon {
+  width: 30px;
+  height: 30px;
+  border: 1px solid #555;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+  font-weight: 750;
+  flex-shrink: 0;
+}
+
+.icon-btn {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 9px;
+  min-width: 34px;
+  height: 34px;
+  display: inline-grid;
+  place-items: center;
+  font-size: 18px;
+}
+
+.icon-btn:hover, .side-btn:hover, .history-item:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.side-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  border-radius: 9px;
+  text-align: left;
+  padding: 10px;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.side-btn .symbol {
+  width: 19px;
+  text-align: center;
+  color: #c3c3c3;
+  font-size: 17px;
+}
+
+.section-label {
+  color: #888;
+  font-size: 10px;
+  letter-spacing: 1.15px;
+  font-weight: 700;
+  padding: 22px 10px 8px;
+  white-space: nowrap;
+}
+
+.history {
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.history-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  text-align: left;
+  font-size: 12px;
+  color: #d1d1d1;
+}
+
+.history-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-item.active { background: #303030; }
+
+.library {
+  border-top: 1px solid #303030;
+  padding-top: 7px;
+  margin-top: 10px;
+}
+
+.document-list {
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.doc-row {
+  padding: 7px 9px;
+  display: flex;
+  gap: 9px;
+  border-radius: 8px;
+  color: #c4c4c4;
+  font-size: 11px;
+  min-width: 0;
+}
+
+.doc-row .doc-name {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.doc-row .doc-meta {
+  display: block;
+  color: #888;
+  font-size: 10px;
+}
+
+.sidebar-bottom {
+  margin-top: auto;
+  padding: 12px 7px 4px;
+  color: #858585;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+/* Main workspace */
+
+.main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.topbar {
+  height: 55px;
+  min-height: 55px;
+  padding: 0 22px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.top-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.top-subtitle {
+  font-size: 11px;
+  color: #999;
+  margin-left: 8px;
+}
+
+.top-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.local-label {
+  color: #aaa;
+  font-size: 11px;
+}
+
+.local-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #8dc9a0;
+  margin-right: 5px;
+}
+
+.chat-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+}
+
+.chat-inner {
+  width: min(760px, 100%);
+  margin: 0 auto;
+  padding: 28px 24px 40px;
+}
+
+.welcome {
+  min-height: min(65vh, 570px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding-bottom: 30px;
+}
+
+.welcome-mark {
+  width: 43px;
+  height: 43px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #4a4a4a;
+  border-radius: 15px;
+  margin-bottom: 24px;
+  font-size: 21px;
+  font-weight: 700;
+  color: #ddd;
+}
+
+.welcome h1 {
+  font-size: clamp(28px, 4vw, 36px);
+  letter-spacing: -1.25px;
+  font-weight: 600;
+  line-height: 1.25;
+  margin: 0 0 12px;
+}
+
+.welcome p {
+  color: #aaa;
+  max-width: 510px;
+  margin: 0;
+  font-size: 14px;
+}
+
+.suggestions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  margin-top: 32px;
+}
+
+.suggestion {
+  text-align: left;
+  border: 1px solid #414141;
+  border-radius: 13px;
+  background: transparent;
+  padding: 13px 15px;
+  min-height: 78px;
+}
+
+.suggestion:hover {
+  background: #292929;
+}
+
+.suggestion strong {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.suggestion span {
+  display: block;
+  font-size: 11px;
+  color: #999;
+}
+
+.messages {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.message {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.user-bubble {
+  align-self: flex-end;
+  max-width: 85%;
+  background: #303030;
+  border-radius: 20px;
+  padding: 10px 16px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.assistant-content {
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  font-size: 14px;
+}
+
+.message-heading {
+  color: #aaa;
+  font-size: 11px;
+  margin-bottom: 7px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.message-heading .mini-mark {
+  border: 1px solid #505050;
+  border-radius: 7px;
+  width: 22px;
+  height: 22px;
+  display: inline-grid;
+  place-items: center;
+  color: #ddd;
+  font-weight: 700;
+}
+
+.message-actions {
+  display: flex;
+  gap: 5px;
+  margin-top: 10px;
+}
+
+.message-actions button {
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  padding: 5px 8px;
+  color: #888;
+  font-size: 11px;
+}
+
+.message-actions button:hover { background: #333; color: #eee; }
+
+.source-details {
+  margin-top: 15px;
+  border-top: 1px solid #3b3b3b;
+  padding-top: 10px;
+}
+
+.source-details summary {
+  cursor: pointer;
+  color: #aaa;
+  font-size: 12px;
+  padding: 4px 0 8px;
+}
+
+.source-list {
+  display: grid;
+  gap: 8px;
+}
+
+.source-card {
+  border: 1px solid #3b3b3b;
+  border-radius: 10px;
+  padding: 11px 12px;
+  background: #252525;
+}
+
+.source-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.source-title .filename { overflow-wrap: anywhere; }
+
+.page {
+  white-space: nowrap;
+  color: #ccc;
+  background: #3b3b3b;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 10px;
+}
+
+.source-card p {
+  color: #aaa;
+  font-size: 11px;
+  line-height: 1.7;
+  margin: 7px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Composer */
+
+.composer-area {
+  padding: 12px 22px 12px;
+  background: linear-gradient(transparent, var(--bg) 12%);
+}
+
+.composer-wrap {
+  width: min(760px, 100%);
+  margin: 0 auto;
+}
+
+.composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  background: #303030;
+  border: 1px solid #444;
+  border-radius: 27px;
+  padding: 8px 9px;
+  box-shadow: 0 5px 22px #0000000c;
+}
+
+.composer:focus-within {
+  border-color: #555;
+}
+
+.attach-btn {
+  flex-shrink: 0;
+  width: 37px;
+  height: 37px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #d2d2d2;
+  font-size: 22px;
+}
+
+.attach-btn:hover { background: #424242; }
+
+.composer textarea {
+  flex: 1;
+  min-width: 0;
+  min-height: 37px;
+  max-height: 180px;
+  resize: none;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  padding: 8px 3px;
+  line-height: 1.5;
+}
+
+.composer textarea::placeholder { color: #a0a0a0; }
+
+.send-btn {
+  flex-shrink: 0;
+  width: 37px;
+  height: 37px;
+  border: 0;
+  border-radius: 50%;
+  background: #ececec;
+  color: #171717;
+  font-size: 19px;
+  font-weight: 700;
+}
+
+.send-btn:hover { background: #fff; }
+
+.send-btn:disabled {
+  background: #555;
+  color: #999;
+}
+
+.composer-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 6px 0;
+  color: #888;
+  font-size: 10px;
+}
+
+.upload-status {
+  color: #aaa;
+  overflow-wrap: anywhere;
+}
+
+.upload-status.error { color: #ffaaaa; }
+
+.disclaimer {
+  text-align: center;
+  color: #858585;
+  font-size: 10px;
+  padding-top: 7px;
+}
+
+.empty-library {
+  color: #888;
+  font-size: 11px;
+  padding: 7px 9px;
+}
+
+.hidden { display: none !important; }
+
+@media (max-width: 720px) {
+  .sidebar {
+    position: absolute;
+    inset: 0 auto 0 0;
+    z-index: 10;
+    box-shadow: 12px 0 35px #0005;
+  }
+
+  .app.sidebar-closed .sidebar {
+    display: none;
+  }
+
+  .topbar { padding: 0 12px; }
+  .top-subtitle { display: none; }
+  .local-label { font-size: 0; }
+  .chat-inner { padding: 20px 16px 30px; }
+  .composer-area { padding: 8px 12px 10px; }
+  .suggestions { grid-template-columns: 1fr; margin-top: 24px; }
+  .welcome { min-height: 60vh; }
+  .welcome h1 { font-size: 29px; }
+  .user-bubble { max-width: 92%; }
+}
+</style>
+</head>
+
+<body>
+<div class="app" id="app">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-top">
+      <div class="brand">
+        <div class="brand-icon">R</div>
+        <span>ResearchPilot</span>
+      </div>
+      <button class="icon-btn" id="closeSidebar" title="Close sidebar"
+              aria-label="Close sidebar">◧</button>
+    </div>
+
+    <button class="side-btn" id="newChat">
+      <span class="symbol">＋</span> New chat
+    </button>
+
+    <button class="side-btn" id="uploadSide">
+      <span class="symbol">↥</span> Add research paper
+    </button>
+
+    <div class="section-label">YOUR CHATS</div>
+    <div class="history" id="history">
+      <div class="empty-library">Your recent conversations appear here.</div>
+    </div>
+
+    <div class="library">
+      <div class="section-label">RESEARCH LIBRARY</div>
+      <div class="document-list" id="documentList">
+        <div class="empty-library">Loading documents…</div>
+      </div>
+    </div>
+
+    <div class="sidebar-bottom">ResearchPilot AI · Local research workspace</div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <button class="icon-btn" id="openSidebar" title="Open sidebar"
+              aria-label="Open sidebar">☰</button>
+      <span class="top-title">ResearchPilot AI</span>
+      <span class="top-subtitle">Research assistant</span>
+      <div class="top-actions">
+        <span class="local-label" id="serverStatus">
+          <span class="local-dot"></span> Local workspace
+        </span>
+        <button class="icon-btn" id="topNewChat" title="New chat"
+                aria-label="New chat">＋</button>
+      </div>
+    </header>
+
+    <section class="chat-scroll" id="chatScroll">
+      <div class="chat-inner">
+        <div class="welcome" id="welcome">
+          <div class="welcome-mark">R</div>
+          <h1>What are we researching<br>today?</h1>
+          <p>Ask questions about your papers, explore methodology, find evidence and understand research findings.</p>
+
+          <div class="suggestions" id="suggestions">
+            <button class="suggestion"
+                    data-question="Summarize the main objective of this paper.">
+              <strong>Summarize a paper</strong>
+              <span>Identify its goal and key contributions.</span>
+            </button>
+            <button class="suggestion"
+                    data-question="What methodology does the paper use?">
+              <strong>Understand methodology</strong>
+              <span>Explore its approach and techniques.</span>
+            </button>
+            <button class="suggestion"
+                    data-question="What are the key findings and evidence?">
+              <strong>Find key findings</strong>
+              <span>Review findings supported by passages.</span>
+            </button>
+            <button class="suggestion"
+                    data-question="What limitations and future work does the paper discuss?">
+              <strong>Explore limitations</strong>
+              <span>Identify gaps and future directions.</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="messages" id="messages" aria-live="polite"></div>
+      </div>
+    </section>
+
+    <footer class="composer-area">
+      <div class="composer-wrap">
+        <form class="composer" id="chatForm">
+          <button type="button" class="attach-btn" id="attachButton"
+                  title="Upload PDF" aria-label="Upload PDF">＋</button>
+
+          <textarea id="questionInput" rows="1"
+                    placeholder="Ask anything about your research…"
+                    aria-label="Research question"></textarea>
+
+          <button class="send-btn" id="sendButton" type="submit"
+                  title="Send message" aria-label="Send message">↑</button>
+        </form>
+
+        <div class="composer-foot">
+          <span class="upload-status" id="uploadStatus" role="status">
+            PDF research · Local AI
+          </span>
+          <span>Enter to send · Shift + Enter for new line</span>
+        </div>
+
+        <div class="disclaimer">
+          ResearchPilot can make mistakes. Verify important claims against the original paper.
+        </div>
+      </div>
+    </footer>
+  </main>
+</div>
+
+<input id="pdfInput" type="file" accept=".pdf,application/pdf"
+       class="hidden" aria-label="Choose a PDF to upload">
+
+<script>
+const $ = id => document.getElementById(id);
+
+const app = $("app");
+const sidebar = $("sidebar");
+const chatScroll = $("chatScroll");
+const messages = $("messages");
+const welcome = $("welcome");
+const history = $("history");
+const questionInput = $("questionInput");
+const sendButton = $("sendButton");
+const pdfInput = $("pdfInput");
+const uploadStatus = $("uploadStatus");
+
+let chats = [];
+let activeChatId = null;
+let busy = false;
+
+function escapeHTML(value) {
+  return String(value).replace(/[&<>"']/g, c => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  })[c]);
+}
+
+function scrollBottom() {
+  requestAnimationFrame(() => {
+    chatScroll.scrollTop = chatScroll.scrollHeight;
+  });
+}
+
+function currentChat() {
+  return chats.find(chat => chat.id === activeChatId);
+}
+
+function createChat() {
+  const chat = {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    title: "New chat",
+    messages: []
+  };
+
+  chats.unshift(chat);
+  activeChatId = chat.id;
+  renderHistory();
+  renderChat();
+  questionInput.focus();
+  closeMobileSidebar();
+}
+
+function renderHistory() {
+  if (!chats.length) {
+    history.innerHTML =
+      '<div class="empty-library">Your recent conversations appear here.</div>';
+    return;
+  }
+
+  history.innerHTML = chats.map(chat => `
+    <button class="history-item ${chat.id === activeChatId ? "active" : ""}"
+            data-chat-id="${escapeHTML(chat.id)}">
+      <span>◷</span>
+      <span>${escapeHTML(chat.title)}</span>
+    </button>
+  `).join("");
+
+  history.querySelectorAll("[data-chat-id]").forEach(button => {
+    button.addEventListener("click", () => {
+      activeChatId = button.dataset.chatId;
+      renderHistory();
+      renderChat();
+      closeMobileSidebar();
+    });
+  });
+}
+
+function renderSources(sources) {
+  if (!sources || !sources.length) return "";
+
+  return `
+    <details class="source-details">
+      <summary>Sources · ${sources.length} retrieved passages</summary>
+      <div class="source-list">
+        ${sources.map(source => `
+          <div class="source-card">
+            <div class="source-title">
+              <span class="filename">${escapeHTML(source.filename)}</span>
+              <span class="page">Page ${escapeHTML(source.page)}</span>
+            </div>
+            <p>${escapeHTML(source.excerpt || "")}</p>
+          </div>
+        `).join("")}
+      </div>
+    </details>
+  `;
+}
+
+function renderChat() {
+  const chat = currentChat();
+  const items = chat ? chat.messages : [];
+
+  welcome.classList.toggle("hidden", items.length > 0);
+
+  messages.innerHTML = items.map((message, index) => {
+    if (message.role === "user") {
+      return `
+        <article class="message">
+          <div class="user-bubble">${escapeHTML(message.content)}</div>
+        </article>
+      `;
+    }
+
+    return `
+      <article class="message">
+        <div class="message-heading">
+          <span class="mini-mark">R</span>
+          <span>ResearchPilot AI</span>
+        </div>
+        <div class="assistant-content">${escapeHTML(message.content)}</div>
+        ${renderSources(message.sources)}
+        <div class="message-actions">
+          <button data-copy-index="${index}" title="Copy answer">Copy</button>
+        </div>
+      </article>
+    `;
+  }).join("");
+
+  messages.querySelectorAll("[data-copy-index]").forEach(button => {
+    button.addEventListener("click", async () => {
+      const message = currentChat()?.messages[Number(button.dataset.copyIndex)];
+      if (!message) return;
+
+      try {
+        await navigator.clipboard.writeText(message.content);
+        button.textContent = "Copied";
+        setTimeout(() => button.textContent = "Copy", 1200);
+      } catch {
+        button.textContent = "Copy unavailable";
+      }
+    });
+  });
+
+  renderHistory();
+  scrollBottom();
+}
+
+function addMessage(role, content, sources = []) {
+  const chat = currentChat();
+  if (!chat) return;
+
+  chat.messages.push({ role, content, sources });
+
+  if (role === "user" && chat.title === "New chat") {
+    chat.title = content.slice(0, 38) +
+      (content.length > 38 ? "…" : "");
+  }
+
+  renderChat();
+}
+
+async function askQuestion(value) {
+  const question = value.trim();
+  if (!question || busy) return;
+
+  if (!activeChatId) createChat();
+
+  addMessage("user", question);
+  questionInput.value = "";
+  resizeInput();
+
+  busy = true;
+  sendButton.disabled = true;
+  sendButton.textContent = "…";
+
+  const loading = document.createElement("article");
+  loading.className = "message";
+  loading.innerHTML = `
+    <div class="message-heading">
+      <span class="mini-mark">R</span>
+      <span>ResearchPilot AI</span>
+    </div>
+    <div class="assistant-content">Thinking through your research…</div>
+  `;
+  messages.appendChild(loading);
+  scrollBottom();
+
+  try {
+    const response = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.detail || "The research request failed.");
+    }
+
+    loading.remove();
+    addMessage("assistant", data.answer, data.sources || []);
+
+  } catch (error) {
+    loading.remove();
+    addMessage(
+      "assistant",
+      `I couldn't complete that request.\n\n${error.message}\n\nCheck that the server and Ollama are running.`
+    );
+  } finally {
+    busy = false;
+    sendButton.disabled = false;
+    sendButton.textContent = "↑";
+    questionInput.focus();
+  }
+}
+
+async function loadDocuments() {
+  try {
+    const response = await fetch("/api/documents");
+    if (!response.ok) throw new Error("Could not load documents.");
+
+    const data = await response.json();
+
+    if (!data.documents.length) {
+      $("documentList").innerHTML =
+        '<div class="empty-library">No PDFs indexed yet.</div>';
+      return;
+    }
+
+    $("documentList").innerHTML = data.documents.map(doc => `
+      <div class="doc-row">
+        <span>▤</span>
+        <div class="doc-name">
+          ${escapeHTML(doc.name)}
+          <span class="doc-meta">${formatSize(doc.size_bytes)}</span>
+        </div>
+      </div>
+    `).join("");
+
+  } catch {
+    $("documentList").innerHTML =
+      '<div class="empty-library">Unable to load documents.</div>';
+  }
+}
+
+function formatSize(bytes) {
+  if (bytes < 1024 * 1024) {
+    return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  }
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function resizeInput() {
+  questionInput.style.height = "auto";
+  questionInput.style.height =
+    Math.min(questionInput.scrollHeight, 180) + "px";
+}
+
+function closeMobileSidebar() {
+  if (window.innerWidth <= 720) {
+    app.classList.add("sidebar-closed");
+  }
+}
+
+$("newChat").addEventListener("click", createChat);
+$("topNewChat").addEventListener("click", createChat);
+
+$("closeSidebar").addEventListener("click", () => {
+  app.classList.add("sidebar-closed");
+});
+
+$("openSidebar").addEventListener("click", () => {
+  app.classList.toggle("sidebar-closed");
+});
+
+$("chatForm").addEventListener("submit", event => {
+  event.preventDefault();
+  askQuestion(questionInput.value);
+});
+
+questionInput.addEventListener("input", resizeInput);
+
+questionInput.addEventListener("keydown", event => {
+  if (event.key === "Enter" && !event.shiftKey) {
+    event.preventDefault();
+    $("chatForm").requestSubmit();
+  }
+});
+
+document.querySelectorAll("[data-question]").forEach(button => {
+  button.addEventListener("click", () => {
+    askQuestion(button.dataset.question);
+  });
+});
+
+function openUploadPicker() {
+  pdfInput.click();
+}
+
+$("attachButton").addEventListener("click", openUploadPicker);
+$("uploadSide").addEventListener("click", openUploadPicker);
+
+pdfInput.addEventListener("change", async () => {
+  const file = pdfInput.files[0];
+  if (!file) return;
+
+  if (!file.name.toLowerCase().endsWith(".pdf")) {
+    uploadStatus.textContent = "Please choose a PDF file.";
+    uploadStatus.classList.add("error");
+    pdfInput.value = "";
+    return;
+  }
+
+  if (file.size > 25 * 1024 * 1024) {
+    uploadStatus.textContent = "Maximum upload size is 25 MB.";
+    uploadStatus.classList.add("error");
+    pdfInput.value = "";
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  uploadStatus.classList.remove("error");
+  uploadStatus.textContent = "Uploading and indexing PDF…";
+
+  $("attachButton").disabled = true;
+  $("uploadSide").disabled = true;
+
+  try {
+    const response = await fetch("/api/upload", {
+      method: "POST",
+      body: formData
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.detail || "Upload failed.");
+    }
+
+    uploadStatus.textContent =
+      `${data.filename} indexed · ${data.chunks_indexed} chunks`;
+
+    await loadDocuments();
+
+  } catch (error) {
+    uploadStatus.textContent = error.message;
+    uploadStatus.classList.add("error");
+  } finally {
+    $("attachButton").disabled = false;
+    $("uploadSide").disabled = false;
+    pdfInput.value = "";
+  }
+});
+
+async function checkServer() {
+  try {
+    const response = await fetch("/api/health");
+    if (!response.ok) throw new Error();
+
+    $("serverStatus").innerHTML =
+      '<span class="local-dot"></span> Local';
+
+  } catch {
+    $("serverStatus").textContent = "Server unavailable";
+  }
+}
+
+createChat();
+loadDocuments();
+checkServer();
+</script>
+</body>
+</html>

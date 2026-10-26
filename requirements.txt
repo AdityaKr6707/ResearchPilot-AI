@@ -1,0 +1,11 @@
+
+langchain
+langchain-ollama
+langgraph
+langchain-chroma
+langchain-text-splitters
+pypdf
+grandalf
+fastapi
+uvicorn[standard]
+python-multipart

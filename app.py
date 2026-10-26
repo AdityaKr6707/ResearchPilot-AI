@@ -1,13 +1,17 @@
 
+
 from pathlib import Path
 import hashlib
+import os
 import shutil
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
+from google import genai
+from google.genai import types
+from langchain_core.embeddings import Embeddings
 from langchain_chroma import Chroma
-from langchain_ollama import ChatOllama, OllamaEmbeddings
 
 from pdf_reader import read_pdf_documents
 from text_splitter import split_pdf_into_documents
@@ -16,28 +20,53 @@ from text_splitter import split_pdf_into_documents
 BASE_DIR = Path(__file__).resolve().parent
 PAPERS_DIR = BASE_DIR / "papers"
 STATIC_DIR = BASE_DIR / "static"
-DATABASE_PATH = str(BASE_DIR / "chroma_db_multi")
 
-EMBEDDING_MODEL = "nomic-embed-text"
-CHAT_MODEL = "llama3.2:3b"
+# Use a NEW database because the old one contains Ollama embeddings.
+DATABASE_PATH = str(BASE_DIR / "chroma_db_gemini")
+
+CHAT_MODEL = "gemini-2.5-flash"
+EMBEDDING_MODEL = "gemini-embedding-001"
 MAX_FILE_SIZE = 25 * 1024 * 1024
 
 PAPERS_DIR.mkdir(exist_ok=True)
 STATIC_DIR.mkdir(exist_ok=True)
 
-app = FastAPI(title="ResearchPilot AI", version="1.0.0")
+API_KEY = os.getenv("GEMINI_API_KEY")
+client = genai.Client(api_key=API_KEY) if API_KEY else None
 
-embeddings = OllamaEmbeddings(model=EMBEDDING_MODEL)
+app = FastAPI(title="ResearchPilot AI", version="1.1.0")
+
+
+class GeminiEmbeddings(Embeddings):
+    """Gemini embeddings compatible with LangChain and Chroma."""
+
+    def _embed(self, text, task_type):
+        if client is None:
+            raise RuntimeError("GEMINI_API_KEY is not configured.")
+
+        result = client.models.embed_content(
+            model=EMBEDDING_MODEL,
+            contents=text,
+            config=types.EmbedContentConfig(task_type=task_type),
+        )
+        return result.embeddings[0].values
+
+    def embed_documents(self, texts):
+        return [
+            self._embed(text, "RETRIEVAL_DOCUMENT")
+            for text in texts
+        ]
+
+    def embed_query(self, text):
+        return self._embed(text, "RETRIEVAL_QUERY")
+
+
+embeddings = GeminiEmbeddings()
 
 vector_store = Chroma(
     collection_name="research_papers",
     embedding_function=embeddings,
     persist_directory=DATABASE_PATH,
-)
-
-llm = ChatOllama(
-    model=CHAT_MODEL,
-    temperature=0.2,
 )
 
 
@@ -51,8 +80,6 @@ def make_chunk_id(source: str, page: int, content: str) -> str:
 
 
 def index_pdf(pdf_path: Path) -> int:
-    """Replace this PDF's indexed chunks with its current content."""
-
     chunks = split_pdf_into_documents(str(pdf_path))
 
     if not chunks:
@@ -66,12 +93,8 @@ def index_pdf(pdf_path: Path) -> int:
     for chunk in chunks:
         chunk.metadata["source"] = source
         page = int(chunk.metadata.get("page", 0))
+        ids.append(make_chunk_id(source, page, chunk.page_content))
 
-        ids.append(
-            make_chunk_id(source, page, chunk.page_content)
-        )
-
-    # Remove old records for this filename, then index its current version.
     old_records = vector_store.get(
         where={"source": source},
         include=["metadatas"],
@@ -80,11 +103,7 @@ def index_pdf(pdf_path: Path) -> int:
     if old_records["ids"]:
         vector_store.delete(ids=old_records["ids"])
 
-    vector_store.add_documents(
-        documents=chunks,
-        ids=ids,
-    )
-
+    vector_store.add_documents(documents=chunks, ids=ids)
     return len(chunks)
 
 
@@ -106,14 +125,15 @@ def health():
     return {
         "status": "ok",
         "model": CHAT_MODEL,
-        "database": "local ChromaDB",
+        "database": "ChromaDB",
+        "ai_provider": "Gemini",
+        "api_key_configured": client is not None,
     }
 
 
 @app.get("/api/documents")
 def list_documents():
     files = sorted(PAPERS_DIR.glob("*.pdf"))
-
     return {
         "documents": [
             {"name": file.name, "size_bytes": file.stat().st_size}
@@ -124,6 +144,12 @@ def list_documents():
 
 @app.post("/api/upload")
 async def upload_pdf(file: UploadFile = File(...)):
+    if client is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Server AI configuration is missing.",
+        )
+
     filename = Path(file.filename or "").name
 
     if not filename or not filename.lower().endswith(".pdf"):
@@ -152,7 +178,6 @@ async def upload_pdf(file: UploadFile = File(...)):
     try:
         temporary.write_bytes(content)
         shutil.move(str(temporary), str(destination))
-
         chunk_count = index_pdf(destination)
 
         return {
@@ -163,7 +188,6 @@ async def upload_pdf(file: UploadFile = File(...)):
 
     except Exception as error:
         temporary.unlink(missing_ok=True)
-
         raise HTTPException(
             status_code=500,
             detail=f"Could not index PDF: {error}",
@@ -172,6 +196,12 @@ async def upload_pdf(file: UploadFile = File(...)):
 
 @app.post("/api/chat")
 def chat(request: ChatRequest):
+    if client is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Server AI configuration is missing.",
+        )
+
     question = request.question.strip()
 
     if not question:
@@ -181,16 +211,13 @@ def chat(request: ChatRequest):
         )
 
     try:
-        documents = vector_store.similarity_search(
-            question,
-            k=4,
-        )
+        documents = vector_store.similarity_search(question, k=4)
 
         if not documents:
             return {
                 "answer": (
-                    "I couldn't find relevant passages in the indexed "
-                    "papers. Upload and index a PDF first."
+                    "I couldn't find relevant passages. "
+                    "Upload and index a PDF first."
                 ),
                 "sources": [],
             }
@@ -222,12 +249,12 @@ def chat(request: ChatRequest):
         prompt = f"""
 You are ResearchPilot AI, a research assistant.
 
-Answer the user's question using the supplied research-paper passages.
+Answer using the supplied research passages.
 Be clear, accurate, and concise.
-Do not invent facts, quotations, sources, or page numbers.
-If the passages do not contain enough information, say so.
-Use citations like [Source: filename.pdf, Page: 3] only when
-supported by the supplied passages.
+Do not invent facts, sources, or page numbers.
+If the passages are insufficient, say so.
+Cite claims using [Source: filename.pdf, Page: 3]
+only when supported by the supplied passages.
 
 RESEARCH PASSAGES:
 {"\n\n---\n\n".join(passages)}
@@ -236,19 +263,19 @@ USER QUESTION:
 {question}
 """
 
-        response = llm.invoke(prompt)
+        response = client.models.generate_content(
+            model=CHAT_MODEL,
+            contents=prompt,
+            config=types.GenerateContentConfig(temperature=0.2),
+        )
 
         return {
-            "answer": response.content,
+            "answer": response.text or "No answer was generated.",
             "sources": sources,
         }
 
     except Exception as error:
         raise HTTPException(
             status_code=500,
-            detail=(
-                "Research request failed. Check that Ollama is running "
-                "and the required models are installed. "
-                f"Details: {error}"
-            ),
+            detail=f"Research request failed: {error}",
         ) from error

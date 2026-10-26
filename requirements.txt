@@ -1,11 +1,10 @@
 
-langchain
-langchain-ollama
-langgraph
-langchain-chroma
-langchain-text-splitters
-pypdf
-grandalf
+
 fastapi
 uvicorn[standard]
 python-multipart
+pypdf
+langchain-core
+langchain-chroma
+langchain-text-splitters
+google-genai
